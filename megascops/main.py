@@ -1,3 +1,4 @@
+import argparse
 import json
 import math
 import os
@@ -11,19 +12,19 @@ TermFreqInverseDocFreq = dict[str, dict[str, float]]
 
 
 class Tokenizer:
-    def __init__(self, content: str):
+    def __init__(self, content: str) -> None:
         self._content = content
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self._content
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}('{self._content[:100]}...')"
 
-    def __iter__(self):
+    def __iter__(self) -> "Tokenizer":
         return self
 
-    def __next__(self):
+    def __next__(self) -> str:
         self._content = self._content.lstrip()
         if not len(self._content):
             raise StopIteration
@@ -108,10 +109,10 @@ class DocumentCorpus:
         return docname, doc_content
 
 
-def main():
+def index(dirname: str) -> None:
     rtf: RawTermFreq = dict()
     tdm: TermDocMap = defaultdict(set)
-    corpus = DocumentCorpus(PdfDocumentScanner("../misc"))
+    corpus = DocumentCorpus(PdfDocumentScanner(dirname))
     for doc, text_content in corpus:
         rtf[doc] = defaultdict(int)
         for term in Tokenizer(text_content):
@@ -119,17 +120,67 @@ def main():
             tdm[term].add(doc)
 
     N = len(corpus)
-    tfidf: TermFreqInverseDocFreq = dict()
+    tfidf: TermFreqInverseDocFreq = defaultdict(dict)
     for doc, dtf in rtf.items():
-        tfidf[doc] = dict()
         for term, raw_tf in dtf.items():
             tf = raw_tf / sum(dtf.values())
             idf = math.log(N / len(tdm[term]))
-            tfidf[doc][term] = tf * idf
+            tfidf[term][doc] = tf * idf
 
     with open("tfidf.json", "w") as f:
         json.dump(tfidf, f, ensure_ascii=False)
 
 
+def search(query: str) -> None:
+    try:
+        with open("tfidf.json", "r") as f:
+            tfidf: TermFreqInverseDocFreq = json.load(f)
+    except FileNotFoundError:
+        print("No index found")
+        exit(1)
+
+    cummulative_score = defaultdict(float)
+    for term in Tokenizer(query):
+        for doc, score in tfidf.get(term, {}).items():
+            cummulative_score[doc] += score
+
+    for doc, score in sorted(
+        cummulative_score.items(), key=lambda x: x[1], reverse=True
+    ):
+        print(doc, score)
+
+
+def main(args: argparse.Namespace) -> None:
+    if args.command == "index":
+        index(args.dirname)
+        exit(0)
+    if args.command == "search":
+        search(args.query)
+        exit(0)
+
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        prog="megascops", description="index and search PDF documents locally"
+    )
+
+    subparser = parser.add_subparsers(
+        title="operations",
+        description="subcommands",
+        dest="command",
+        help="subcommands",
+    )
+    index_subparser = subparser.add_parser(
+        "index",
+        help="index the documents in the directory",
+    )
+    index_subparser.add_argument("dirname", help="the directory to index")
+    search_subparser = subparser.add_parser(
+        "search",
+        help="search the documents in the directory",
+    )
+    search_subparser.add_argument("query", help="the query to search for")
+
+    args = parser.parse_args()
+
+    main(args)
