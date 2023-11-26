@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "megascops"
+version = "0.1.0"
+description = "TBD"
+authors = ["gilmarf <fsfilho.gilmar@gmail.com>"]
+readme = "README.md"
+packages = [{include = "megascops"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+black = "^23.11.0"
+pypdf2 = "^3.0.1"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
