@@ -5,8 +5,8 @@ from collections import defaultdict
 from typing import Protocol
 from PyPDF2 import PdfReader
 
-TermFreq = dict[str, dict[str, int]]
-DocFreq = dict[str, int]
+RawTermFreq = dict[str, dict[str, int]]
+TermDocMap = dict[str, set[str]]
 TermFreqInverseDocFreq = dict[str, dict[str, float]]
 
 
@@ -109,23 +109,24 @@ class DocumentCorpus:
 
 
 def main():
-    tf: TermFreq = dict()
-    df: DocFreq = dict()
+    rtf: RawTermFreq = dict()
+    tdm: TermDocMap = defaultdict(set)
     corpus = DocumentCorpus(PdfDocumentScanner("../misc"))
-    for i, (doc, text_content) in enumerate(corpus, 1):
-        tf[doc] = defaultdict(int)
+    for doc, text_content in corpus:
+        rtf[doc] = defaultdict(int)
         for term in Tokenizer(text_content):
-            tf[doc][term] += 1
-            df[term] = i
+            rtf[doc][term] += 1
+            tdm[term].add(doc)
 
     N = len(corpus)
     tfidf: TermFreqInverseDocFreq = dict()
-    for doc, dtf in tf.items():
+    for doc, dtf in rtf.items():
         tfidf[doc] = dict()
-        for term, tf in dtf.items():
-            tfidf[doc][term] = tf * math.log(N / df[term])
+        for term, raw_tf in dtf.items():
+            tf = raw_tf / sum(dtf.values())
+            idf = math.log(N / len(tdm[term]))
+            tfidf[doc][term] = tf * idf
 
-    print(tfidf)
     with open("tfidf.json", "w") as f:
         json.dump(tfidf, f, ensure_ascii=False)
 
